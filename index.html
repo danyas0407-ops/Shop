@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Касса маркетплейса KL</title>
+    <!-- Библиотека для сканера -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Библиотека для создания картинки из HTML -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            padding: 20px; 
+            max-width: 600px; 
+            margin: auto; 
+            background-color: #f0f0f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 { text-align: center; color: #333; }
+        #reader { width: 100%; max-width: 400px; margin: 0 auto 20px; overflow: hidden; border-radius: 8px; }
+        .cart-item { 
+            display: flex; justify-content: space-between; 
+            margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px; 
+        }
+        .btn-print { background: #000; color: #fff; }
+        .btn-clear { background: #ff3b30; color: #fff; }
+        button { 
+            width: 100%; padding: 16px; font-size: 18px; font-weight: bold;
+            margin-top: 10px; cursor: pointer; border: none; border-radius: 10px;
+        }
+
+        /* ----- СТИЛИ ДЛЯ ЧЕКА (Скрыт на экране, идеален для принтера) ----- */
+        #receipt-container {
+            position: absolute;
+            top: -9999px; /* Прячем за пределы экрана */
+            left: -9999px;
+        }
+        #receipt { 
+            width: 384px; /* Оптимальная ширина для принтеров 58мм (203 dpi) */
+            padding: 20px;
+            background: white;
+            color: black;
+            font-family: 'Courier New', Courier, monospace; /* Классический шрифт чека */
+            font-size: 24px;
+            font-weight: bold; /* Жирный шрифт лучше пропечатывается */
+        }
+        #receipt h2 { font-size: 32px; margin: 10px 0; border-bottom: 2px dashed black; padding-bottom: 10px;}
+        .receipt-row { display: flex; justify-content: space-between; margin: 10px 0; }
+        .receipt-total { border-top: 2px dashed black; padding-top: 10px; margin-top: 20px; font-size: 28px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Касса KL</h1>
+        
+        <div id="reader"></div>
+        
+        <h2>Корзина:</h2>
+        <div id="cart"></div>
+        <h3 style="text-align: right;">Итого: <span id="total">0</span> ₽</h3>
+        
+        <button class="btn-print" onclick="generateAndShareReceipt()">🖨️ В приложение Fun Print</button>
+        <button class="btn-clear" onclick="clearCart()">🗑️ Очистить чек</button>
+    </div>
+
+    <!-- Блок чека для генерации картинки -->
+    <div id="receipt-container">
+        <div id="receipt">
+            <h2 style="text-align: center;">Маркетплейс KL</h2>
+            <div style="text-align: center; margin-bottom: 20px;">Кассовый чек</div>
+            
+            <div id="receipt-items"></div>
+            
+            <div class="receipt-row receipt-total">
+                <span>ИТОГО:</span>
+                <span><span id="receipt-total">0</span> ₽</span>
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px; font-size: 18px;">
+                Спасибо за покупку!<br>
+                Ждем вас снова!
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // База данных штрих-кодов магазина KL
+        const productsDB = {
+            "111111111111": { name: "Маска (Стандарт)", price: 500 },
+            "222222222222": { name: "Маска (Кастом)", price: 1200 }
+        };
+
+        let cart = [];
+        let total = 0;
+
+        // Настройка сканера
+        function onScanSuccess(decodedText, decodedResult) {
+            if (productsDB[decodedText]) {
+                const product = productsDB[decodedText];
+                addToCart(product);
+                
+                // Звуковой сигнал при сканировании (опционально)
+                if ("vibrate" in navigator) navigator.vibrate(200);
+
+                html5QrcodeScanner.pause();
+                setTimeout(() => html5QrcodeScanner.resume(), 1500);
+            } else {
+                // Если штрих-код не найден в базе
+                alert(`Штрих-код ${decodedText} не найден в базе!`);
+            }
+        }
+
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader", { fps: 10, qrbox: {width: 250, height: 100} }, false);
+        html5QrcodeScanner.render(onScanSuccess);
+
+        function addToCart(product) {
+            cart.push(product);
+            total += product.price;
+            updateUI();
+        }
+
+        function clearCart() {
+            cart = [];
+            total = 0;
+            updateUI();
+        }
+
+        function updateUI() {
+            const cartDiv = document.getElementById('cart');
+            const receiptItemsDiv = document.getElementById('receipt-items');
+            
+            cartDiv.innerHTML = '';
+            receiptItemsDiv.innerHTML = '';
+            
+            cart.forEach(item => {
+                // Отрисовка на экране телефона
+                cartDiv.innerHTML += `<div class="cart-item"><span>${item.name}</span><strong>${item.price} ₽</strong></div>`;
+                // Отрисовка внутри скрытого чека
+                receiptItemsDiv.innerHTML += `<div class="receipt-row"><span>${item.name}</span><span>${item.price}</span></div>`;
+            });
+
+            document.getElementById('total').innerText = total;
+            document.getElementById('receipt-total').innerText = total;
+        }
+
+        // Генерация картинки и отправка в Fun Print
+        function generateAndShareReceipt() {
+            if (cart.length === 0) {
+                alert("Сначала отсканируйте товары!");
+                return;
+            }
+
+            const receiptElement = document.getElementById('receipt');
+
+            // Делаем снимок чека
+            html2canvas(receiptElement, {
+                backgroundColor: "#ffffff",
+                scale: 2 // Высокое качество
+            }).then(canvas => {
+                canvas.toBlob(function(blob) {
+                    const file = new File([blob], 'KL_receipt.png', { type: 'image/png' });
+
+                    // Проверяем, поддерживает ли телефон нативное меню "Поделиться" файлами
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            files: [file],
+                            title: 'Чек KL'
+                        }).then(() => {
+                            console.log('Успешно передано');
+                        }).catch(console.error);
+                    } else {
+                        // Резервный вариант: скачивание картинки
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = 'KL_receipt.png';
+                        link.click();
+                        URL.revokeObjectURL(url);
+                    }
+                }, 'image/png');
+            });
+        }
+    </script>
+</body>
+</html>
