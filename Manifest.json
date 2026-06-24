@@ -1,0 +1,8 @@
+{
+  "name": "Касса KL",
+  "short_name": "Касса KL",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f0f0f5",
+  "theme_color": "#000000"
+}
